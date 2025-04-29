@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VANGYROS GAME</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/@supabase/supabase-js"></script>
+</head>
+<body>
+    <div id="auth-screen">
+        <div class="auth-content">
+            <h2>VANGYROS</h2>
+            
+            <div class="game-rules">
+                <p>Твоя задача: собрать как можно больше очков за 60 секунд. Топ 3 участника в конце акции получат на бонусный счет то количество баллов, которое заработали.</p>
+                <p>Вы можете играть и попытаться побить рекорд любое количество раз.</p>
+            </div>
+            
+            <form id="auth-form">
+                <div class="form-group">
+                    <label for="player-phone">Ваш номер телефона:</label>
+                    <input type="tel" id="player-phone" placeholder="+7" pattern="^(\+?7|8)[0-9]{10}$" title="Формат номера: 79999999999 или +79999999999" required>
+                </div>
+                <button type="submit" id="start-game-btn" class="game-btn">Начать игру</button>
+            </form>
+        </div>
+    </div>
+
+    <div class="game-container hidden" id="game-container">
+        <div class="game-header">
+            <div class="score">Очки: <span id="score">0</span></div>
+            <div class="logo">VANGYROS</div>
+            <div class="timer">Время: <span id="timer">60</span>с</div>
+        </div>
+        
+        <div class="game-info">
+            <div id="lives" class="lives-display">Жизни: <span class="lives-count">3</span></div>
+        </div>
+        
+        <div class="game-area">
+            <div class="lane left"></div>
+            <div class="lane center"></div>
+            <div class="lane right"></div>
+            <div id="player">🛵</div>
+        </div>
+
+        <div class="controls">
+            <button id="btn-left">←</button>
+            <button id="btn-right">→</button>
+            <div class="controls-right">
+                <!-- Sound and trophy buttons will be added here by JavaScript -->
+            </div>
+        </div>
+
+        <div class="game-controls">
+            <button id="restart" class="game-btn">Начать заново</button>
+        </div>
+
+        <div id="game-over" class="hidden">
+            <div class="game-over-content">
+                <h2>Время вышло!</h2>
+                <p>Вы набрали: <span id="final-score">0</span> очков</p>
+                <p class="result-message"></p>
+                <p class="best-score">Ваш лучший результат: <span id="best-score">0</span></p>
+                <button id="play-again" class="game-btn">Играть снова</button>
+                <button id="show-leaderboard-from-gameover" class="game-btn">Таблица рекордов</button>
+            </div>
+        </div>
+
+        <div id="leaderboard" class="hidden">
+            <div class="leaderboard-content">
+                <h2>Таблица рекордов</h2>
+                <div id="leaderboard-list">
+                    <!-- Top players will be added here by JS -->
+                </div>
+                <button id="close-leaderboard" class="game-btn">Закрыть</button>
+            </div>
+        </div>
+    </div>
+    <script src="game.js"></script>
+</body>
+</html> 
