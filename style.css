@@ -466,27 +466,6 @@ body {
     margin: 15px 0;
 }
 
-/* Промокод (если используется) */
-.promo-code {
-    font-weight: bold;
-    color: #ffd600;
-    font-size: 1.2em;
-    text-shadow: 0 0 8px #ffd600;
-    letter-spacing: 1px;
-    padding: 8px 12px;
-    border: 1px dashed rgba(255, 214, 0, 0.7);
-    display: inline-block;
-    margin: 10px 0;
-    background: rgba(255, 214, 0, 0.1);
-    border-radius: 4px;
-    animation: glowPulse 1.5s infinite alternate;
-}
-
-@keyframes glowPulse {
-    0% { box-shadow: 0 0 5px rgba(255, 214, 0, 0.5); }
-    100% { box-shadow: 0 0 15px rgba(255, 214, 0, 0.8); }
-}
-
 /* Game info section with lives */
 .game-info {
     width: 100%;
@@ -740,6 +719,24 @@ body {
     letter-spacing: 2px;
 }
 
+#pending-score-message {
+    background-color: rgba(0, 0, 0, 0.7);
+    border-radius: 8px;
+    padding: 10px;
+    margin-bottom: 15px;
+    border: 1px solid #ffd600;
+    color: #ffd600;
+    font-weight: bold;
+    text-align: center;
+    animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+    0% { box-shadow: 0 0 5px rgba(255, 214, 0, 0.5); }
+    50% { box-shadow: 0 0 15px rgba(255, 214, 0, 0.8); }
+    100% { box-shadow: 0 0 5px rgba(255, 214, 0, 0.5); }
+}
+
 .game-rules {
     background-color: rgba(0, 0, 0, 0.5);
     border-radius: 8px;
@@ -862,4 +859,21 @@ body {
 /* Add this rule to set the font size for the phone input field */
 #player-phone {
     font-size: 16px; /* Set font size to prevent zoom on mobile */
+}
+
+.form-group {
+    margin-bottom: 15px;
+}
+
+.form-group-hidden {
+    display: none;
+}
+
+.auth-content h2 {
+    color: #ffd600;
+    font-size: 1.8em;
+    margin-bottom: 15px;
+    text-shadow: 0 0 10px rgba(255, 214, 0, 0.5);
+    text-transform: uppercase;
+    letter-spacing: 2px;
 }

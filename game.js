@@ -16,19 +16,7 @@ class Game {
         this.bestScore = 0;
         this.playerResults = [];
         this.allResults = [];
-        this.usedPromoCodes = []; // Track used promo codes
-
-        // List of promo codes
-        this.promoCodes = [
-            'gogo2025', 'gogo1234', 'gogo5678', 'gogo9012',
-            'gogo3456', 'gogo7890', 'gogo4321', 'gogo8765',
-            'gogo0987', 'gogo6543', 'gogo2468', 'gogo1357',
-            'gogo8642', 'gogo7531', 'gogo1111', 'gogo2222',
-            'gogo3333', 'gogo4444', 'gogo5555', 'gogo6666',
-            'gogo7777', 'gogo8888', 'gogo9999', 'gogo0000',
-            'gogo1122', 'gogo3344', 'gogo5566', 'gogo7788',
-            'gogo9900', 'gogo2468'
-        ];
+        this.pendingScore = null; // Для хранения результата игры до авторизации
 
         // Initialize Supabase client
         this.initializeSupabase();
@@ -72,12 +60,8 @@ class Game {
     initializeAudio() {
         try {
             this.audio = {
-                background: new Audio('audio/background.mp3'),
-                coin: new Audio('audio/coin.mp3'),
-                collision: new Audio('audio/collision.mp3'),
-                jump: new Audio('audio/jump.mp3'),
-                gameOver: new Audio('audio/gameover.mp3'),
-                win: new Audio('audio/win.mp3')
+                background: new Audio('audio/background.mp3')
+                // Удаляем все звуки кроме фонового
             };
 
             // Configure background music
@@ -85,13 +69,6 @@ class Game {
                 this.audio.background.loop = true;
                 this.audio.background.volume = 0; // Start with volume 0
             }
-
-            // Configure sound effects
-            Object.values(this.audio).forEach(sound => {
-                if (sound && sound !== this.audio.background) {
-                    sound.volume = 0; // Start with volume 0
-                }
-            });
         } catch (error) {
             console.error('Error initializing audio:', error);
         }
@@ -208,7 +185,6 @@ class Game {
             playerPhoneInput.addEventListener('keydown', (e) => {
                 const value = e.target.value;
                 
-                // Если пытаемся удалить +7, отменяем действие
                 if (
                     (e.key === 'Backspace' || e.key === 'Delete') && 
                     (value.length <= 2 || 
@@ -222,9 +198,18 @@ class Game {
         if (authForm) {
             authForm.addEventListener('submit', (e) => {
                 e.preventDefault();
-                this.playerName = "Player"; // Default name since we removed the name input
                 
-                // Нормализуем формат телефона к +7XXXXXXXXXX
+                const phoneInputGroup = playerPhoneInput.closest('.form-group');
+                const isPhoneVisible = phoneInputGroup && !phoneInputGroup.classList.contains('form-group-hidden');
+                
+                if (!isPhoneVisible) {
+                    this.authScreen.classList.add('hidden');
+                    this.gameContainer.classList.remove('hidden');
+                    this.startGame();
+                    return;
+                }
+                
+                this.playerName = "Player";
                 let phoneNumber = playerPhoneInput.value.trim();
                 
                 // Убираем все нецифровые символы (кроме +)
@@ -245,11 +230,32 @@ class Game {
                 }
                 
                 this.playerPhone = phoneNumber;
-                
-                // Load player's previous results
                 this.loadPlayerResults();
                 
-                // Start game
+                if (this.pendingScore !== null) {
+                    console.log(`Сохраняем отложенный результат: ${this.pendingScore}`);
+                    const pendingScoreValue = this.pendingScore;
+                    const currentScore = this.score;
+                    this.score = pendingScoreValue;
+                    this.saveResult();
+                    this.pendingScore = null;
+                    this.score = 0;
+                }
+                
+                // Скрываем поле телефона и делаем его необязательным для следующей игры
+                if (playerPhoneInput) {
+                    playerPhoneInput.required = false;
+                    playerPhoneInput.hidden = true;
+                    playerPhoneInput.disabled = true;
+                    if (phoneInputGroup) {
+                        phoneInputGroup.classList.add('form-group-hidden');
+                    }
+                }
+                const startButton = document.getElementById('start-game-btn');
+                if (startButton) {
+                     startButton.textContent = 'Начать игру'; // Возвращаем текст кнопки
+                }
+
                 this.authScreen.classList.add('hidden');
                 this.gameContainer.classList.remove('hidden');
                 this.startGame();
@@ -567,6 +573,14 @@ class Game {
     }
 
     saveResult() {
+        // Проверяем, что пользователь авторизован
+        if (!this.playerPhone || this.playerPhone.length < 10) {
+            console.warn('Cannot save result: player is not authenticated');
+            return;
+        }
+        
+        console.log(`Сохраняем результат ${this.score} для игрока с телефоном ${this.playerPhone}`);
+        
         // Create result object
         const result = {
             name: this.playerName,
@@ -596,8 +610,18 @@ class Game {
             }
         }
         
+        // Безопасная проверка результата перед сохранением
+        // Не позволяем сохранять нереалистичные значения
+        if (this.score < 0 || this.score > 1000) {
+            console.error('Invalid score value detected');
+            // Fallback to localStorage
+            this.saveToLocalStorage(result);
+            return;
+        }
+        
         // Save to Supabase
         if (this.supabase) {
+            console.log(`Отправляем в Supabase результат: ${this.score} очков для номера ${this.playerPhone}`);
             this.supabase
                 .from('game_results')
                 .insert([{
@@ -609,6 +633,8 @@ class Game {
                 .then(({ data, error }) => {
                     if (error) {
                         console.error('Error saving result to Supabase:', error);
+                        // Fallback to localStorage
+                        this.saveToLocalStorage(result);
                     } else {
                         console.log('Result saved to Supabase successfully', data);
                     }
@@ -856,12 +882,6 @@ class Game {
         this.lives--;
         this.updateLivesDisplay();
         
-        // Play collision sound
-        if (!this.isMuted && this.audio.collision) {
-            this.audio.collision.currentTime = 0;
-            this.audio.collision.play().catch(e => console.warn('Error playing collision sound:', e));
-        }
-        
         // Show collision message
         if (this.gameArea) {
             const message = document.createElement('div');
@@ -889,10 +909,7 @@ class Game {
             this.scoreElement.textContent = this.score;
         }
         
-        if (!this.isMuted && this.audio.coin) {
-            this.audio.coin.currentTime = 0;
-            this.audio.coin.play().catch(e => console.warn('Error playing coin sound:', e));
-        }
+        // Удаляем воспроизведение звука монеты
         
         coin.element.remove();
         this.coins.splice(index, 1);
@@ -913,68 +930,84 @@ class Game {
         this.isGameOver = true;
         clearInterval(this.gameInterval);
         clearInterval(this.timerInterval);
-        this.stopSound(); // Stop background music
-        
+        this.stopSound();
+
         if (this.finalScoreElement) this.finalScoreElement.textContent = this.score;
-        if (this.bestScoreElement) this.bestScoreElement.textContent = this.bestScore;
-        
-        // Check if the score is 300 or higher to show promo code message
-        if (this.score >= 300 && this.resultMessageElement) {
-            // Get a promo code that hasn't been used yet
-            let promoCode = this.getNextPromoCode();
-            
-            // Create message with promo code
-            const promoMessage = `У вас отлично получилось! В качестве поощрительного приза используйте промокод <span class="promo-code">${promoCode}</span> на следующий заказ.`;
-            
-            // Set the message
-            this.resultMessageElement.innerHTML = promoMessage;
-        }
-        
-        // Save the result
-        this.saveResult();
-        
-        if (this.gameOverScreen) this.gameOverScreen.classList.remove('hidden');
-    }
 
-    // Get the next available promo code
-    getNextPromoCode() {
-        // Filter out already used promo codes
-        const availableCodes = this.promoCodes.filter(code => !this.usedPromoCodes.includes(code));
-        
-        // If all codes have been used, reset used codes (except for the last one used)
-        if (availableCodes.length === 0) {
-            const lastUsed = this.usedPromoCodes[this.usedPromoCodes.length - 1];
-            this.usedPromoCodes = [lastUsed];
-            return this.getNextPromoCode();
-        }
-        
-        // Get a random code from available ones
-        const randomIndex = Math.floor(Math.random() * availableCodes.length);
-        const selectedCode = availableCodes[randomIndex];
-        
-        // Add to used codes
-        this.usedPromoCodes.push(selectedCode);
-        
-        // Save used codes to localStorage
-        try {
-            localStorage.setItem('usedPromoCodes', JSON.stringify(this.usedPromoCodes));
-        } catch (error) {
-            console.error('Error saving used promo codes:', error);
-        }
-        
-        return selectedCode;
-    }
+        let authToSaveButton = document.getElementById('auth-to-save');
+        const gameOverContent = document.querySelector('.game-over-content');
 
-    // Load used promo codes from localStorage
-    loadUsedPromoCodes() {
-        try {
-            const storedCodes = localStorage.getItem('usedPromoCodes');
-            if (storedCodes) {
-                this.usedPromoCodes = JSON.parse(storedCodes);
+        if (!this.playerPhone || this.playerPhone.length < 10) { // Игрок НЕ авторизован
+            this.pendingScore = this.score; 
+
+            if (!authToSaveButton && gameOverContent) {
+                authToSaveButton = document.createElement('button');
+                authToSaveButton.id = 'auth-to-save';
+                authToSaveButton.className = 'game-btn';
+                const showLeaderboardBtn = document.getElementById('show-leaderboard-from-gameover');
+                if (showLeaderboardBtn && showLeaderboardBtn.parentNode === gameOverContent) {
+                    showLeaderboardBtn.insertAdjacentElement('afterend', authToSaveButton);
+                } else {
+                    gameOverContent.appendChild(authToSaveButton); 
+                }
             }
-        } catch (error) {
-            console.error('Error loading used promo codes:', error);
+
+            if (authToSaveButton) {
+                authToSaveButton.textContent = 'Сохранить результат';
+                authToSaveButton.style.display = 'block'; 
+
+                const newButton = authToSaveButton.cloneNode(true);
+                authToSaveButton.parentNode.replaceChild(newButton, authToSaveButton);
+                authToSaveButton = newButton;
+
+                authToSaveButton.addEventListener('click', () => {
+                    if(this.gameOverScreen) this.gameOverScreen.classList.add('hidden');
+                    if(this.authScreen) this.authScreen.classList.remove('hidden');
+                    
+                    const phoneInput = document.getElementById('player-phone');
+                    if (phoneInput) {
+                        phoneInput.required = true;
+                        phoneInput.hidden = false;
+                        phoneInput.disabled = false;
+                        const formGroup = phoneInput.closest('.form-group');
+                        if (formGroup) formGroup.classList.remove('form-group-hidden');
+                    }
+                    
+                    const startGameBtnOnAuth = document.getElementById('start-game-btn');
+                    if (startGameBtnOnAuth) startGameBtnOnAuth.textContent = 'Сохранить и продолжить';
+                    
+                    const authContent = document.querySelector('.auth-content');
+                    if (authContent) {
+                        let msgElement = document.getElementById('pending-score-message');
+                        if (!msgElement) { 
+                            msgElement = document.createElement('div');
+                            msgElement.id = 'pending-score-message';
+                            const heading = authContent.querySelector('h2');
+                            if (heading && heading.nextSibling) {
+                                authContent.insertBefore(msgElement, heading.nextSibling);
+                            } else {
+                                authContent.insertBefore(msgElement, authContent.firstChild);
+                            }
+                        }
+                        msgElement.style.color = '#ffd600';
+                        msgElement.style.marginBottom = '15px';
+                        msgElement.innerHTML = `<strong>Вы набрали: ${this.pendingScore} очков!</strong><br>Введите номер телефона, чтобы сохранить результат.`;
+                    }
+                });
+            }
+
+            if (this.resultMessageElement) this.resultMessageElement.textContent = "Чтобы результат попал в таблицу, сохраните его.";
+            if (this.bestScoreElement) this.bestScoreElement.textContent = "-";
+
+        } else { // Игрок АВТОРИЗОВАН
+            if (authToSaveButton) {
+                authToSaveButton.style.display = 'none'; 
+            }
+            this.saveResult(); 
+            if (this.bestScoreElement) this.bestScoreElement.textContent = this.bestScore;
         }
+
+        if (this.gameOverScreen) this.gameOverScreen.classList.remove('hidden');
     }
 
     startGame() {
@@ -983,9 +1016,6 @@ class Game {
         this.timeLeft = 60;
         this.lives = 3; // Reset lives to 3
         this.isGameOver = false;
-        
-        // Load used promo codes
-        this.loadUsedPromoCodes();
         
         // Update UI
         if (this.scoreElement) {
@@ -1060,28 +1090,17 @@ class Game {
             this.isMuted = !this.isMuted;
             
             if (this.isMuted) {
-                // Mute all sounds
-                Object.values(this.audio).forEach(sound => {
-                    if (sound) {
-                        sound.volume = 0;
-                        if (sound === this.audio.background) {
-                            sound.pause();
-                        }
-                    }
-                });
+                // Mute background music
+                if (this.audio.background) {
+                    this.audio.background.volume = 0;
+                    this.audio.background.pause();
+                }
             } else {
-                // Unmute all sounds
+                // Unmute background music
                 if (this.audio.background) {
                     this.audio.background.volume = 0.3;
-                    this.audio.background.play();
+                    this.audio.background.play().catch(e => console.warn('Error playing background sound:', e));
                 }
-                
-                // Set volume for other sounds
-                Object.values(this.audio).forEach(sound => {
-                    if (sound && sound !== this.audio.background) {
-                        sound.volume = 0.5;
-                    }
-                });
             }
         } catch (error) {
             console.error('Error toggling sound:', error);
@@ -1191,5 +1210,27 @@ class Game {
 
 // Start game when page loads
 window.addEventListener('load', () => {
-    new Game();
+    const game = new Game();
+    
+    game.authScreen.classList.remove('hidden');
+    game.gameContainer.classList.add('hidden');
+    
+    const authForm = document.getElementById('auth-form');
+    if (authForm) {
+        const phoneInput = document.getElementById('player-phone');
+        if (phoneInput) {
+            phoneInput.required = false;
+            phoneInput.hidden = true;     // Скрываем само поле
+            phoneInput.disabled = true;   // Отключаем поле, чтобы оно не валидировалось
+            const formGroup = phoneInput.closest('.form-group');
+            if (formGroup) {
+                formGroup.classList.add('form-group-hidden'); // Скрываем родительский блок
+            }
+        }
+        
+        const startButton = document.getElementById('start-game-btn');
+        if (startButton) {
+            startButton.textContent = 'Начать игру';
+        }
+    }
 });
