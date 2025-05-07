@@ -1000,6 +1000,12 @@ class Game {
         if (!this.playerPhone || this.playerPhone.length < 10) { // Игрок НЕ авторизован
             this.pendingScore = this.score; 
 
+            // Скрываем кнопку "Таблица рекордов" для неавторизованных пользователей
+            const leaderboardBtn = document.getElementById('show-leaderboard-from-gameover');
+            if (leaderboardBtn) {
+                leaderboardBtn.style.display = 'none';
+            }
+
             if (!authToSaveButton && gameOverContent) {
                 authToSaveButton = document.createElement('button');
                 authToSaveButton.id = 'auth-to-save';
@@ -1055,6 +1061,13 @@ class Game {
             if (authToSaveButton) {
                 authToSaveButton.style.display = 'none'; 
             }
+            
+            // Показываем кнопку "Таблица рекордов" для авторизованных пользователей
+            const leaderboardBtn = document.getElementById('show-leaderboard-from-gameover');
+            if (leaderboardBtn) {
+                leaderboardBtn.style.display = 'block';
+            }
+            
             this.saveResult(); 
             if (this.bestScoreElement) this.bestScoreElement.textContent = this.bestScore;
             // Очищаем сообщение для авторизованного пользователя
