@@ -8,6 +8,7 @@ class Game {
         this.obstacles = [];
         this.coins = [];
         this.gameInterval = null;
+        this.gameLoopId = null;
         this.timerInterval = null;
         this.isGameOver = false;
         this.isMuted = true; // Start with sound muted
@@ -17,6 +18,10 @@ class Game {
         this.playerResults = [];
         this.allResults = [];
         this.pendingScore = null; // Для хранения результата игры до авторизации
+
+        // Game settings
+        this.obstacleProbability = 0.02; // Вероятность появления препятствия
+        this.coinProbability = 0.03;   // Вероятность появления монеты
 
         // Initialize Supabase client
         this.initializeSupabase();
@@ -31,8 +36,9 @@ class Game {
             { emoji: '🚌', name: 'автобус' }
         ];
 
-        // Save lane positions
-        this.lanePositions = [16.66, 50, 83.33];
+        // Save lane positions as ratios of game area width
+        // this.lanePositions = [16.66, 50, 83.33]; // Старые процентные значения
+        this.laneRatios = [1/6, 1/2, 5/6]; // Доли для центров полос [0.1666..., 0.5, 0.8333...]
 
         // Initialize game elements
         this.initializeElements();
@@ -256,6 +262,7 @@ class Game {
                      startButton.textContent = 'Начать игру'; // Возвращаем текст кнопки
                 }
 
+                console.log('Auth form submit. Before calling startGame. isGameOver:', this.isGameOver, 'gameLoopId:', this.gameLoopId);
                 this.authScreen.classList.add('hidden');
                 this.gameContainer.classList.remove('hidden');
                 this.startGame();
@@ -666,6 +673,7 @@ class Game {
     }
 
     clearGame() {
+        console.log('clearGame called. Current gameLoopId before clearing:', this.gameLoopId, 'TimerInterval:', this.timerInterval);
         // Hide screens
         if (this.gameOverScreen) this.gameOverScreen.classList.add('hidden');
 
@@ -679,6 +687,21 @@ class Game {
         this.obstacles = [];
         this.coins = [];
         this.isGameOver = false;
+        if (this.gameLoopId) {
+            cancelAnimationFrame(this.gameLoopId);
+            this.gameLoopId = null;
+            console.log('clearGame: gameLoopId cancelled and set to null.');
+        }
+        if (this.gameInterval) {
+            clearInterval(this.gameInterval);
+            this.gameInterval = null;
+        }
+        if (this.timerInterval) {
+            clearInterval(this.timerInterval);
+            this.timerInterval = null;
+            console.log('clearGame: timerInterval cleared.');
+        }
+        console.log('clearGame finished. gameLoopId after clearing:', this.gameLoopId, 'TimerInterval after:', this.timerInterval);
     }
 
     setupEventListeners() {
@@ -788,74 +811,107 @@ class Game {
     }
 
     moveRight() {
-        if (this.currentLane < this.lanePositions.length - 1) {
+        if (this.currentLane < this.laneRatios.length - 1) {
             this.currentLane++;
             this.updatePlayerPosition();
         }
     }
 
     updatePlayerPosition() {
-        if (this.player) {
-            this.player.style.left = `${this.lanePositions[this.currentLane]}%`;
-        }
+        if (!this.player || !this.gameArea) return;
+        
+        const gameAreaWidth = this.gameArea.offsetWidth;
+        // Вычисляем позицию центра текущей полосы в пикселях
+        const laneCenterPx = gameAreaWidth * this.laneRatios[this.currentLane];
+
+        // Устанавливаем transform: смещаем игрока к центру полосы (laneCenterPx)
+        // а затем translateX(-50%) центрирует сам элемент игрока относительно этой точки.
+        const transformValue = `translateX(${laneCenterPx}px) translateX(-50%)`;
+        // console.log(`Updating player to lane ${this.currentLane}, centerPx: ${laneCenterPx}, transform: ${transformValue}`);
+        this.player.style.transform = transformValue;
     }
 
     createObstacle() {
-        const obstacle = document.createElement('div');
-        obstacle.className = 'obstacle';
+        const obstacleElement = document.createElement('div');
+        obstacleElement.className = 'obstacle';
         const randomType = this.obstacleTypes[Math.floor(Math.random() * this.obstacleTypes.length)];
-        obstacle.innerHTML = randomType.emoji;
-        obstacle.title = randomType.name;
-        const lane = Math.floor(Math.random() * this.lanePositions.length);
-        obstacle.style.left = `${this.lanePositions[lane]}%`;
-        obstacle.style.top = '0';
+        obstacleElement.innerHTML = randomType.emoji;
+        obstacleElement.title = randomType.name;
+        const lane = Math.floor(Math.random() * this.laneRatios.length);
+        obstacleElement.style.left = `${this.laneRatios[lane] * 100}%`;
+        const initialY = 0; 
+        obstacleElement.style.transform = `translateY(${initialY}px)`; // Новый способ, CSS центрирует по X
+        
         if (this.gameArea) {
-            this.gameArea.appendChild(obstacle);
-            this.obstacles.push({ element: obstacle, lane: lane, type: randomType.name });
+            this.gameArea.appendChild(obstacleElement);
+            this.obstacles.push({ 
+                element: obstacleElement, 
+                lane: lane, 
+                type: randomType.name, 
+                y: initialY // Сохраняем начальную Y координату
+            });
         }
     }
 
     createCoin() {
-        const coin = document.createElement('div');
-        coin.className = 'coin';
-        coin.innerHTML = '🥙';
-        const lane = Math.floor(Math.random() * this.lanePositions.length);
-        coin.style.left = `${this.lanePositions[lane]}%`;
-        coin.style.top = '0';
+        const coinElement = document.createElement('div');
+        coinElement.className = 'coin';
+        coinElement.innerHTML = '🥙'; // Используем эмодзи гироса
+        const lane = Math.floor(Math.random() * this.laneRatios.length);
+        coinElement.style.left = `${this.laneRatios[lane] * 100}%`;
+        const initialY = 0; 
+        coinElement.style.transform = `translateY(${initialY}px)`; // Новый способ, CSS центрирует по X
+
         if (this.gameArea) {
-            this.gameArea.appendChild(coin);
-            this.coins.push({ element: coin, lane: lane });
+            this.gameArea.appendChild(coinElement);
+            this.coins.push({ 
+                element: coinElement, 
+                lane: lane, 
+                y: initialY // Сохраняем начальную Y координату
+            });
         }
     }
 
     moveObstacles() {
         for (let i = this.obstacles.length - 1; i >= 0; i--) {
-            const obstacle = this.obstacles[i];
-            const currentTop = parseInt(obstacle.element.style.top || '0');
-            const newTop = currentTop + 4;
-            obstacle.element.style.top = `${newTop}px`;
-            const removalThreshold = this.gameArea ? this.gameArea.offsetHeight : 400;
-            if (newTop > removalThreshold) {
-                obstacle.element.remove();
+            const obstacleObj = this.obstacles[i]; // Переименовываем, чтобы не путать с DOM элементом
+            const obstacleElement = obstacleObj.element; // Используем сохраненный элемент
+
+            if (!obstacleElement) {
+                this.obstacles.splice(i, 1); // Удаляем из массива, если элемента нет
+                continue;
+            }
+
+            obstacleObj.y += 5; // Speed of obstacle, обновляем сохраненную координату
+            obstacleElement.style.transform = `translateY(${obstacleObj.y}px)`; // Новый, CSS уже отцентрировал
+
+            if (obstacleObj.y > this.gameArea.offsetHeight) {
+                obstacleElement.remove(); // Удаляем DOM элемент
                 this.obstacles.splice(i, 1);
-            } else if (this.checkCollision(obstacle)) {
-                this.handleCollision(obstacle, i);
+            } else if (this.checkCollision(obstacleObj)) { // Передаем объект с элементом и другими данными
+                this.handleCollision(obstacleObj, i);
             }
         }
     }
 
     moveCoins() {
         for (let i = this.coins.length - 1; i >= 0; i--) {
-            const coin = this.coins[i];
-            const currentTop = parseInt(coin.element.style.top || '0');
-            const newTop = currentTop + 3;
-            coin.element.style.top = `${newTop}px`;
-            const removalThreshold = this.gameArea ? this.gameArea.offsetHeight : 400;
-            if (newTop > removalThreshold) {
-                coin.element.remove();
+            const coinObj = this.coins[i]; // Переименовываем
+            const coinElement = coinObj.element; // Используем сохраненный элемент
+
+            if (!coinElement) {
                 this.coins.splice(i, 1);
-            } else if (this.checkCoinCollision(coin)) {
-                this.handleCoinCollection(coin, i);
+                continue;
+            }
+
+            coinObj.y += 3; // Speed of coin, обновляем сохраненную координату
+            coinElement.style.transform = `translateY(${coinObj.y}px)`; // Новый, CSS уже отцентрировал
+
+            if (coinObj.y > this.gameArea.offsetHeight) {
+                coinElement.remove();
+                this.coins.splice(i, 1);
+            } else if (this.checkCoinCollision(coinObj)) { // Передаем объект
+                this.handleCoinCollection(coinObj, i);
             }
         }
     }
@@ -882,18 +938,6 @@ class Game {
         this.lives--;
         this.updateLivesDisplay();
         
-        // Show collision message
-        if (this.gameArea) {
-            const message = document.createElement('div');
-            message.className = 'collision-message';
-            message.style.position = 'absolute';
-            message.style.left = obstacle.element.style.left;
-            message.style.top = obstacle.element.style.top;
-            message.textContent = `Ай! ${obstacle.type}!`;
-            this.gameArea.appendChild(message);
-            setTimeout(() => message.remove(), 1000);
-        }
-
         obstacle.element.remove();
         this.obstacles.splice(index, 1);
         
@@ -927,9 +971,25 @@ class Game {
     }
 
     endGame() {
+        console.log('endGame called. Current gameLoopId:', this.gameLoopId, 'isGameOver:', this.isGameOver);
+        if(this.isGameOver) {
+            console.log('endGame: Game is already over, exiting to prevent multiple calls.');
+            // return; // Не выходим, если просто повторный вызов, но 상태는 이미 true
+        }
         this.isGameOver = true;
-        clearInterval(this.gameInterval);
-        clearInterval(this.timerInterval);
+
+        if (this.gameLoopId) {
+            cancelAnimationFrame(this.gameLoopId);
+            this.gameLoopId = null;
+            console.log('endGame: gameLoopId cancelled and set to null.');
+        } else {
+            console.log('endGame: gameLoopId was already null or not active.');
+        }
+        if (this.timerInterval) { // Также останавливаем таймер здесь
+            clearInterval(this.timerInterval);
+            this.timerInterval = null;
+            console.log('endGame: timerInterval cleared.');
+        }
         this.stopSound();
 
         if (this.finalScoreElement) this.finalScoreElement.textContent = this.score;
@@ -976,22 +1036,14 @@ class Game {
                     const startGameBtnOnAuth = document.getElementById('start-game-btn');
                     if (startGameBtnOnAuth) startGameBtnOnAuth.textContent = 'Сохранить и продолжить';
                     
-                    const authContent = document.querySelector('.auth-content');
-                    if (authContent) {
-                        let msgElement = document.getElementById('pending-score-message');
-                        if (!msgElement) { 
-                            msgElement = document.createElement('div');
-                            msgElement.id = 'pending-score-message';
-                            const heading = authContent.querySelector('h2');
-                            if (heading && heading.nextSibling) {
-                                authContent.insertBefore(msgElement, heading.nextSibling);
-                            } else {
-                                authContent.insertBefore(msgElement, authContent.firstChild);
-                            }
-                        }
-                        msgElement.style.color = '#ffd600';
-                        msgElement.style.marginBottom = '15px';
-                        msgElement.innerHTML = `<strong>Вы набрали: ${this.pendingScore} очков!</strong><br>Введите номер телефона, чтобы сохранить результат.`;
+                    // Управление видимостью блоков на экране авторизации при сохранении результата
+                    const gameRulesBlock = document.querySelector('.auth-content .game-rules');
+                    const pendingScoreAuthMsg = document.getElementById('pending-score-auth-message');
+
+                    if (gameRulesBlock) gameRulesBlock.classList.add('hidden'); // Скрываем правила
+                    if (pendingScoreAuthMsg) { // Показываем и заполняем сообщение об очках
+                        pendingScoreAuthMsg.classList.remove('hidden');
+                        pendingScoreAuthMsg.innerHTML = `<strong>Вы набрали: ${this.pendingScore} очков!</strong><br>Введите номер телефона, чтобы сохранить результат.`;
                     }
                 });
             }
@@ -1005,45 +1057,67 @@ class Game {
             }
             this.saveResult(); 
             if (this.bestScoreElement) this.bestScoreElement.textContent = this.bestScore;
+            // Очищаем сообщение для авторизованного пользователя
+            if (this.resultMessageElement) this.resultMessageElement.textContent = "";
+        }
+
+        // Добавляем обработчик клика на промокод при окончании игры
+        const gameOverPromoValue = document.getElementById('game-over-promo-value');
+        const gameOverPromoCopied = document.getElementById('game-over-promo-copied');
+        if (gameOverPromoValue && gameOverPromoCopied) {
+            gameOverPromoValue.onclick = () => {
+                navigator.clipboard.writeText(gameOverPromoValue.textContent || "GAME2").then(() => {
+                    gameOverPromoCopied.classList.remove('hidden');
+                    setTimeout(() => {
+                        gameOverPromoCopied.classList.add('hidden');
+                    }, 2000);
+                }).catch(err => {
+                    console.error('Failed to copy promo code: ', err);
+                    gameOverPromoCopied.textContent = 'Ошибка копирования';
+                    gameOverPromoCopied.style.color = 'red';
+                    gameOverPromoCopied.classList.remove('hidden');
+                    setTimeout(() => {
+                        gameOverPromoCopied.classList.add('hidden');
+                        gameOverPromoCopied.textContent = 'Промокод скопирован!'; // Reset message
+                        gameOverPromoCopied.style.color = '#4dff4d'; // Reset color
+                    }, 2000);
+                });
+            };
         }
 
         if (this.gameOverScreen) this.gameOverScreen.classList.remove('hidden');
     }
 
     startGame() {
-        // Reset game state
+        console.log('startGame called. Initial state: isGameOver:', this.isGameOver, 'gameLoopId:', this.gameLoopId);
+        
+        // Принудительно отменяем анимацию, если она активна
+        if (this.gameLoopId) {
+            console.log('startGame: отменяем активную анимацию, gameLoopId:', this.gameLoopId);
+            cancelAnimationFrame(this.gameLoopId);
+            this.gameLoopId = null;
+        }
+        
+        // Остальные проверки больше не нужны, так как мы всегда очищаем состояние
+        this.clearGame(); 
+        this.isGameOver = false;
         this.score = 0;
         this.timeLeft = 60;
-        this.lives = 3; // Reset lives to 3
-        this.isGameOver = false;
-        
-        // Update UI
-        if (this.scoreElement) {
-            this.scoreElement.textContent = '0';
-        }
-        if (this.timerElement) {
-            this.timerElement.textContent = '60';
-        }
+        this.lives = 3; 
+        this.obstacles = [];
+        this.coins = [];
+        this.currentLane = 1; // Сброс на центральную полосу
+
+        if (this.scoreElement) this.scoreElement.textContent = this.score;
+        if (this.timerElement) this.timerElement.textContent = this.timeLeft;
         this.updateLivesDisplay();
-        
-        // Start playing background music
-        this.playSound();
+        this.updatePlayerPosition(); // Обновить позицию игрока на экране
+        console.log('startGame: State reset. isGameOver:', this.isGameOver);
 
-        // Game speed and probabilities
-        const gameSpeed = 30;
-        const obstacleProbability = 0.02;
-        const coinProbability = 0.03;
+        // Запускаем новый игровой цикл
+        console.log('startGame: Requesting animation frame.');
+        this.gameLoopId = requestAnimationFrame(this.gameLoop.bind(this));
 
-        // Start game loop
-        this.gameInterval = setInterval(() => {
-            if (this.isGameOver) return;
-            if (Math.random() < obstacleProbability) this.createObstacle();
-            if (Math.random() < coinProbability) this.createCoin();
-            this.moveObstacles();
-            this.moveCoins();
-        }, gameSpeed);
-        
-        // Start timer
         this.timerInterval = setInterval(() => {
             this.updateTimer();
         }, 1000);
@@ -1054,11 +1128,13 @@ class Game {
             console.log('Restarting game...');
             
             // Clear intervals
-            if (this.gameInterval) {
-                clearInterval(this.gameInterval);
+            if (this.gameLoopId) {
+                cancelAnimationFrame(this.gameLoopId);
+                this.gameLoopId = null;
             }
             if (this.timerInterval) {
                 clearInterval(this.timerInterval);
+                this.timerInterval = null;
             }
 
             // Clear game field
@@ -1206,15 +1282,42 @@ class Game {
             }
         });
     }
+
+    // Новый метод для игрового цикла
+    gameLoop() {
+        // console.log('gameLoop running. isGameOver:', this.isGameOver); // Раскомментируй для детальной отладки цикла
+        if (this.isGameOver) return;
+
+        // Логика создания объектов (перенесено из старого setInterval)
+        if (Math.random() < this.obstacleProbability) {
+            this.createObstacle();
+        }
+        if (Math.random() < this.coinProbability) {
+            this.createCoin();
+        }
+
+        this.moveObstacles();
+        this.moveCoins();
+
+        this.gameLoopId = requestAnimationFrame(this.gameLoop.bind(this));
+    }
 }
 
 // Start game when page loads
 window.addEventListener('load', () => {
     const game = new Game();
     
-    game.authScreen.classList.remove('hidden');
-    game.gameContainer.classList.add('hidden');
+    // Показываем начальный экран авторизации
+    if (game.authScreen) game.authScreen.classList.remove('hidden');
+    if (game.gameContainer) game.gameContainer.classList.add('hidden');
     
+    // На начальном экране правила должны быть видны, а промокод и сообщение об очках - скрыты
+    const gameRulesBlock = document.querySelector('#auth-screen .game-rules');
+    const pendingScoreAuthMsg = document.getElementById('pending-score-auth-message');
+
+    if (gameRulesBlock) gameRulesBlock.classList.remove('hidden');
+    if (pendingScoreAuthMsg) pendingScoreAuthMsg.classList.add('hidden');
+
     const authForm = document.getElementById('auth-form');
     if (authForm) {
         const phoneInput = document.getElementById('player-phone');

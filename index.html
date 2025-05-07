@@ -13,9 +13,15 @@
         <div class="auth-content">
             <h2>VANGYROS</h2>
             
+            <div id="pending-score-auth-message" class="hidden">
+                <!-- Сообщение о набранных очках будет вставляться сюда из JS -->
+            </div>
+
             <div class="game-rules">
                 <p>Правила игры:</p>
-                <p>Собери максимум гиросов за 1 минуту. Топ-3 получат баллы на бонусный счет.</p>
+                <p>Период акции - 1 месяц.</p>
+                <p>Всем участникам игры дарим промокод на следующий заказ.</p>
+                <p>Собери максимум гиросов за 1 минуту. Топ-3 игроков по итогам месяца получат баллы на бонусный счет.</p>
                 <p>Управление:</p>
                 <p>ПК: стрелочки (← → )</p>
                 <p>Смартфон: свайпы/кнопки</p>
@@ -64,10 +70,16 @@
 
         <div id="game-over" class="hidden">
             <div class="game-over-content">
-                <h2>Время вышло!</h2>
+                <h2>GAME OVER</h2>
                 <p>Вы набрали: <span id="final-score">0</span> очков</p>
                 <p class="result-message"></p>
-                <p class="best-score">Ваш лучший результат: <span id="best-score">0</span></p>
+                
+                <div id="game-over-promo-block" class="promo-code-block">
+                    <p>Спасибо за игру, дарим вам промокод на следующий заказ:</p>
+                    <div id="game-over-promo-value" class="promo-code-value" title="Нажмите, чтобы скопировать">GAME2</div>
+                    <p id="game-over-promo-copied" class="promo-copied-message hidden">Промокод скопирован!</p>
+                </div>
+                
                 <button id="play-again" class="game-btn">Играть снова</button>
                 <button id="show-leaderboard-from-gameover" class="game-btn">Таблица рекордов</button>
             </div>
