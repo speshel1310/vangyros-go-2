@@ -147,7 +147,8 @@ body {
     display: flex;
     align-items: center;
     justify-content: center;
-    filter: drop-shadow(0 0 8px rgba(255, 0, 0, 0.6));
+    /* Убираем свечение */
+    /* filter: drop-shadow(0 0 8px rgba(255, 0, 0, 0.6)); */
     transform: translateX(-50%); /* Центрируем элемент относительно его style.left */
     /* animation: obstacleShake 0.5s infinite; */
     transform-origin: center center;
@@ -164,7 +165,8 @@ body {
     display: flex;
     align-items: center;
     justify-content: center;
-    filter: drop-shadow(0 0 8px #ffd600);
+    /* Убираем свечение */
+    /* filter: drop-shadow(0 0 8px #ffd600); */
     transform: translateX(-50%); /* Центрируем элемент относительно его style.left */
     /* animation: coinPulse 1.2s infinite ease-in-out; */ /* Временно отключаем для теста */
 }
