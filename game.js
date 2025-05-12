@@ -894,7 +894,7 @@ class Game {
                 continue;
             }
 
-            obstacleObj.y += 5; // Speed of obstacle, обновляем сохраненную координату
+            obstacleObj.y += 4; // Speed of obstacle, обновляем сохраненную координату
             obstacleElement.style.transform = `translateY(${obstacleObj.y}px)`; // Новый, CSS уже отцентрировал
 
             if (obstacleObj.y > this.gameArea.offsetHeight) {
