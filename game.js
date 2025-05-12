@@ -18,6 +18,7 @@ class Game {
         this.playerResults = [];
         this.allResults = [];
         this.pendingScore = null; // Для хранения результата игры до авторизации
+        this.isMobile = this.checkIsMobile(); // Проверяем при инициализации
 
         // Game settings
         this.obstacleProbability = 0.02; // Вероятность появления препятствия
@@ -209,6 +210,10 @@ class Game {
                 const isPhoneVisible = phoneInputGroup && !phoneInputGroup.classList.contains('form-group-hidden');
                 
                 if (!isPhoneVisible) {
+                    // Переход к игре без авторизации
+                    this.trackEvent('game_play_without_auth', {
+                        device_type: this.isMobile ? 'mobile' : 'desktop'
+                    });
                     this.authScreen.classList.add('hidden');
                     this.gameContainer.classList.remove('hidden');
                     this.startGame();
@@ -236,6 +241,13 @@ class Game {
                 }
                 
                 this.playerPhone = phoneNumber;
+                
+                // Отправляем событие авторизации в метрику
+                this.trackEvent('user_auth', {
+                    device_type: this.isMobile ? 'mobile' : 'desktop',
+                    auth_source: this.pendingScore !== null ? 'after_game' : 'before_game'
+                });
+                
                 this.loadPlayerResults();
                 
                 if (this.pendingScore !== null) {
@@ -938,6 +950,13 @@ class Game {
         this.lives--;
         this.updateLivesDisplay();
         
+        // Отправляем событие столкновения с препятствием
+        this.trackEvent('obstacle_collision', {
+            obstacle_type: obstacle.type,
+            lives_left: this.lives,
+            score: this.score
+        });
+        
         obstacle.element.remove();
         this.obstacles.splice(index, 1);
         
@@ -952,6 +971,12 @@ class Game {
         if (this.scoreElement) {
             this.scoreElement.textContent = this.score;
         }
+        
+        // Отправляем событие сбора монеты
+        this.trackEvent('coin_collected', {
+            current_score: this.score,
+            coins_collected: this.score / 10 // Каждая монета дает 10 очков
+        });
         
         // Удаляем воспроизведение звука монеты
         
@@ -977,6 +1002,14 @@ class Game {
             // return; // Не выходим, если просто повторный вызов, но 상태는 이미 true
         }
         this.isGameOver = true;
+
+        // Отправляем событие окончания игры в метрику
+        this.trackEvent('game_end', {
+            score: this.score,
+            time_played: 60 - this.timeLeft,
+            device_type: this.isMobile ? 'mobile' : 'desktop',
+            is_authorized: !!this.playerPhone
+        });
 
         if (this.gameLoopId) {
             cancelAnimationFrame(this.gameLoopId);
@@ -1080,12 +1113,27 @@ class Game {
         if (gameOverPromoValue && gameOverPromoCopied) {
             gameOverPromoValue.onclick = () => {
                 navigator.clipboard.writeText(gameOverPromoValue.textContent || "GAME2").then(() => {
+                    // Отслеживаем успешное копирование промокода
+                    this.trackEvent('promo_code_copied', {
+                        promo_code: gameOverPromoValue.textContent || "GAME2",
+                        score: this.score,
+                        device_type: this.isMobile ? 'mobile' : 'desktop',
+                        is_authorized: !!this.playerPhone
+                    });
+                    
                     gameOverPromoCopied.classList.remove('hidden');
                     setTimeout(() => {
                         gameOverPromoCopied.classList.add('hidden');
                     }, 2000);
                 }).catch(err => {
                     console.error('Failed to copy promo code: ', err);
+                    
+                    // Отслеживаем ошибку копирования промокода
+                    this.trackEvent('promo_code_copy_error', {
+                        device_type: this.isMobile ? 'mobile' : 'desktop',
+                        error: err.message
+                    });
+                    
                     gameOverPromoCopied.textContent = 'Ошибка копирования';
                     gameOverPromoCopied.style.color = 'red';
                     gameOverPromoCopied.classList.remove('hidden');
@@ -1103,6 +1151,12 @@ class Game {
 
     startGame() {
         console.log('startGame called. Initial state: isGameOver:', this.isGameOver, 'gameLoopId:', this.gameLoopId);
+        
+        // Отправляем событие начала игры в метрику
+        this.trackEvent('game_start', {
+            device_type: this.isMobile ? 'mobile' : 'desktop',
+            is_authorized: !!this.playerPhone
+        });
         
         // Принудительно отменяем анимацию, если она активна
         if (this.gameLoopId) {
@@ -1177,6 +1231,12 @@ class Game {
     toggleSound() {
         try {
             this.isMuted = !this.isMuted;
+            
+            // Отправляем событие включения/выключения звука
+            this.trackEvent('sound_toggle', {
+                sound_state: this.isMuted ? 'off' : 'on',
+                device_type: this.isMobile ? 'mobile' : 'desktop'
+            });
             
             if (this.isMuted) {
                 // Mute background music
@@ -1313,6 +1373,23 @@ class Game {
         this.moveCoins();
 
         this.gameLoopId = requestAnimationFrame(this.gameLoop.bind(this));
+    }
+
+    // Добавляем метод для определения типа устройства
+    checkIsMobile() {
+        return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    }
+
+    // Добавляем метод для отправки событий в Яндекс.Метрику
+    trackEvent(eventName, params = {}) {
+        try {
+            if (typeof ym !== 'undefined') {
+                console.log(`Отправка события: ${eventName}`, params);
+                ym(101785403, 'reachGoal', eventName, params);
+            }
+        } catch (error) {
+            console.error('Ошибка при отправке события в метрику:', error);
+        }
     }
 }
 
