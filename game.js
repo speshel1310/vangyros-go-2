@@ -631,7 +631,7 @@ class Game {
         
         // Безопасная проверка результата перед сохранением
         // Не позволяем сохранять нереалистичные значения
-        if (this.score < 0 || this.score > 1000) {
+        if (this.score < 0 || this.score > 2000) {
             console.error('Invalid score value detected');
             // Fallback to localStorage
             this.saveToLocalStorage(result);
